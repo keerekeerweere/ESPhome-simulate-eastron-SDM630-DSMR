@@ -18,15 +18,7 @@ Emulates the Modbus registers of an SDM630.
 Uses real measurement values (primarily DSMR/P1 via Home Assistant; optionally Shelly 3EM for compatibility).
 
 Perfect for integration into home automation or energy monitoring systems designed for the SDM630.
-# Original Github-Projekt: https://github.com/hankipanky/esphome-fake-eastron-SDM630
-# Shelly-kompatibler Fork / Shelly-compatible fork: https://github.com/Feierprinz/ESPhome-fake-eastron-SDM630-Shelly-3EM
-# Original Yaml: https://github.com/hankipanky/esphome-fake-eastron-SDM630/blob/master/fake-eastron.yaml
-# Original Modbus - Dateien: https://github.com/hankipanky/esphome-fake-eastron-SDM630/blob/master/esphome/components/modbus_server/modbus_server.h und 
-# https://github.com/hankipanky/esphome-fake-eastron-SDM630/blob/master/esphome/components/modbus_server/modbus_server.cpp
-# Original Github basiert auf ESPHome 2024.5 und einem Shelly 3EM Pro, dieses Projekt hier auf ESPHome 2025.3.3 und einem Shelly 3EM
-# Folgender ESP wird verwendet: https://amzn.to/4coLhZm
-# Folgender RS485-Adapter: https://amzn.to/3R5zpBN
-##################################
+
 ## Goal
 
 This project allows you to provide live meter data from a DSMR/P1 setup (via Home Assistant) to a charger/inverter that expects an [Eastron SDM630](https://www.eastroneurope.com/products/view/sdm630modbus) over Modbus RTU.
@@ -104,7 +96,16 @@ Always match the ESPHome `modbus_slave_id` to the charger’s configured meter t
 
 ## Some thoughts
 
-* I want to have as little elements involved in this as possible. Other projects use an MQTT broker between smart meter and ESP, which could become unavailable. Therefore I use direct communication between the two.
-* Shelly always reports the power factor as a positive value. Eastron reports it as negative when exporting power. Therefore I'm calculating the powerfactor myself, rather than using the values provided by the Shelly.
-* I would prefer to use Modbus TCP to query the Shelly. Not sure if ESPhome supports this.
-* The inverter is constantly adjusting the charge/discharge rate of the battery, trying to avoid importing power. My observations show that the inverter "overshoots" by ~50W to achieve this. As a result, the installation is constantly exporting a little bit of power to the grid. In order to avoid this, I'm adjusting the reported values for active and aparent power by 20W per phase. This balances the import/export at around -5..5W.
+* The core idea is to simulate a Modbus RTU energy meter (SDM630-style) and feed the EV charger values that produce a desired charging behavior.
+* This enables strategy-driven charging (tariff-aware, capacity-aware, solar-surplus-aware) instead of relying only on raw instantaneous household consumption.
+* A key part of the project is understanding exactly which registers the charger polls and how it reacts, so request logging is important during testing.
+* For reliability, the preferred target hardware is likely an ESP32 variant with Ethernet (instead of Wi-Fi), especially for long-running charger control scenarios.
+* The simulated values should remain realistic enough that the charger accepts them and behaves predictably, while still allowing controlled influence over charging power.
+
+## Project Lineage (References)
+
+- Upstream project: <https://github.com/hankipanky/esphome-fake-eastron-SDM630>
+- Shelly-compatible fork: <https://github.com/Feierprinz/ESPhome-fake-eastron-SDM630-Shelly-3EM>
+- Upstream sample YAML: <https://github.com/hankipanky/esphome-fake-eastron-SDM630/blob/master/fake-eastron.yaml>
+- Upstream `modbus_server` component:
+  <https://github.com/hankipanky/esphome-fake-eastron-SDM630/tree/master/esphome/components/modbus_server>
