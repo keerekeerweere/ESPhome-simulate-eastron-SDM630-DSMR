@@ -1,4 +1,13 @@
 Projektbeschreibung / Project Description
+
+## Disclaimer
+
+This repository is in a **proof-of-concept** stage and has **not been tested on real hardware yet**.
+
+The author of this repository accepts **no liability whatsoever** for damage, injury, non-compliance, data loss, charging issues, grid issues, or any other consequences resulting from the use of this project.
+
+Only **qualified electricians** and people who fully understand the electrical, fire, equipment, and compliance risks involved should consider using or testing this repository.
+
 English:
 This project emulates an Eastron SDM630 energy meter over RS485/Modbus using ESPHome. The primary goal is to expose DSMR/P1 meter values (via Home Assistant) as if they came from a real SDM630. The Shelly 3EM variant is still kept for compatibility with the original GitHub project.
 
