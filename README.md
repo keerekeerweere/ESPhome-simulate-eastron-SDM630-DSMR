@@ -1,26 +1,16 @@
 Projektbeschreibung / Project Description
-Deutsch:
-Dieses Projekt emuliert einen Eastron SDM630 Energiezähler über RS485/Modbus mit Hilfe von ESPHome und einem Shelly 3EM. Es stellt die vom Shelly gemessenen Strom- und Energiewerte so bereit, als kämen sie von einem echten SDM630. Ideal für Systeme oder Software, die Daten von einem SDM630 erwarten, aber stattdessen den Shelly 3EM verwenden sollen.
-
-Hauptfunktionen:
-
-Emuliert die Modbus-Register eines SDM630.
-
-Nutzt die realen Messwerte vom Shelly 3EM über ESPHome.
-
-Perfekt zur Integration in Hausautomationen oder Energiemonitoring-Systeme, die auf den SDM630 ausgelegt sind.
-________________________________________
 English:
-This project emulates an Eastron SDM630 energy meter over RS485/Modbus using ESPHome and a Shelly 3EM. It presents the power and energy data measured by the Shelly as if it were coming from a real SDM630. Ideal for systems or software that expect an SDM630 but should actually use a Shelly 3EM instead.
+This project emulates an Eastron SDM630 energy meter over RS485/Modbus using ESPHome. The primary goal is to expose DSMR/P1 meter values (via Home Assistant) as if they came from a real SDM630. The Shelly 3EM variant is still kept for compatibility with the original GitHub project.
 
 Key Features:
 
 Emulates the Modbus registers of an SDM630.
 
-Uses real-time readings from the Shelly 3EM via ESPHome.
+Uses real measurement values (primarily DSMR/P1 via Home Assistant; optionally Shelly 3EM for compatibility).
 
 Perfect for integration into home automation or energy monitoring systems designed for the SDM630.
 # Original Github-Projekt: https://github.com/hankipanky/esphome-fake-eastron-SDM630
+# Shelly-kompatibler Fork / Shelly-compatible fork: https://github.com/Feierprinz/ESPhome-fake-eastron-SDM630-Shelly-3EM
 # Original Yaml: https://github.com/hankipanky/esphome-fake-eastron-SDM630/blob/master/fake-eastron.yaml
 # Original Modbus - Dateien: https://github.com/hankipanky/esphome-fake-eastron-SDM630/blob/master/esphome/components/modbus_server/modbus_server.h und 
 # https://github.com/hankipanky/esphome-fake-eastron-SDM630/blob/master/esphome/components/modbus_server/modbus_server.cpp
@@ -30,18 +20,25 @@ Perfect for integration into home automation or energy monitoring systems design
 ##################################
 ## Goal
 
-This project allows you to provide live data from a [Shelly Pro 3 EM](https://www.shelly.com/en-us/products/shop/shelly-pro-3-em) smart meter to a solar inverter that expects an [Eastron SDM630](https://www.eastroneurope.com/products/view/sdm630modbus).
+This project allows you to provide live meter data from a DSMR/P1 setup (via Home Assistant) to a charger/inverter that expects an [Eastron SDM630](https://www.eastroneurope.com/products/view/sdm630modbus) over Modbus RTU.
+
+The original Shelly-based flow is still included to stay compatible with the upstream project and hardware setup.
 
 ## How is this working?
 
-The project provides an ESPhome component acting as a Slave/Client/Server that can be polled by a master (e.g. a solar inverter) via Modbus RTU. It behaves as much as possible like the Eastron SDM630 while fetching the actual data from the Shelly smart meter.
+The project provides an ESPhome component acting as a Modbus RTU slave/server that can be polled by a master (e.g. charger or inverter). It behaves as much as possible like an Eastron SDM630 while mapping real meter data into the SDM630 register layout.
 
 ### How exactly?
 
 * On boot, the ESPhome starts a Modbus slave on address 2. This is where Growatt expects to find the vanilla Eastron SDM630 Modbus V2. It registers several input registers that can be queried by a Modbus master.
-* At 1s intervals, it makes a HTTP GET request to the Shelly smart meter, fetching live data.
-* The JSON-data is parsed, converted to IEEE-754 float and written to the matching registers.
-* The inverter queries the Modbus slave several times a second, fetching the input registers in various groups.
+* On the data side, ESPHome can read values either from Home Assistant (DSMR/P1 entities) or from the Shelly-based upstream flow.
+* The values are converted to IEEE-754 float and written to matching SDM630 input registers.
+* The charger/inverter queries the Modbus slave several times a second, fetching the input registers in various groups.
+
+### Config variants
+
+* `config/esphome/fake-eastron.yaml` = Shelly-based variant (kept for upstream compatibility)
+* `config/esphome/simulated-eastron-dsmr-ha.yaml` = DSMR/P1 via Home Assistant variant (current primary goal)
 
 ## Why?
 
@@ -58,7 +55,9 @@ Since the Shelly is LAN-connected, this simple ESPhome project bridges manufactu
 
 1. Connect ESP32 dev board to RS485 module.
 2. Connect RS485 A and B connectors to pins 5 (A) and 6 (B) of the Growatt SYS COM port.
-3. Build and flash the firmware based on the [sample ESPhome config](./fake-eastron.yaml).
+3. Build and flash the firmware based on the chosen ESPHome config:
+   * Shelly-compatible: [`config/esphome/fake-eastron.yaml`](./config/esphome/fake-eastron.yaml)
+   * DSMR/Home Assistant: [`config/esphome/simulated-eastron-dsmr-ha.yaml`](./config/esphome/simulated-eastron-dsmr-ha.yaml)
 4. Enable meter-reading in Growatt **TODO: explain how**
 5. Power-cycle the inverter completely.
 

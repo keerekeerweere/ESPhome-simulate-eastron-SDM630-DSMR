@@ -1,21 +1,22 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-This repository is an ESPHome-based SDM630 emulator for Shelly 3EM hardware.
+This repository is an ESPHome-based SDM630 emulator (DSMR/Home Assistant primary, Shelly-compatible variant retained).
 
-- `fake-eastron.yaml`: main ESPHome device configuration (entry point for build/flash).
+- `config/esphome/fake-eastron.yaml`: Shelly-compatible ESPHome configuration (upstream-compatible variant).
+- `config/esphome/simulated-eastron-dsmr-ha.yaml`: DSMR/P1 via Home Assistant variant (primary project goal).
 - `esphome/components/modbus_server/`: custom ESPHome component (`.cpp`, `.h`, `__init__.py`) implementing the Modbus server behavior.
 - `docs/`: reference PDFs (protocols, pinouts).
 - `images/`: wiring and installation photos.
-- `secrets.yaml`: local credentials/secrets used by ESPHome (do not commit real secrets).
+- `config/esphome/secrets.yaml`: local credentials/secrets used by ESPHome (do not commit real secrets).
 
 ## Build, Test, and Development Commands
 Use the ESPHome CLI from the repository root.
 
-- `esphome config fake-eastron.yaml`: validate YAML and component configuration.
-- `esphome compile fake-eastron.yaml`: build firmware only.
-- `esphome run fake-eastron.yaml`: build, upload, and start logs (best default during development).
-- `esphome logs fake-eastron.yaml`: monitor runtime logs from the device.
+- `esphome config config/esphome/simulated-eastron-dsmr-ha.yaml`: validate the DSMR/Home Assistant variant.
+- `esphome compile config/esphome/simulated-eastron-dsmr-ha.yaml`: build firmware only.
+- `esphome run config/esphome/simulated-eastron-dsmr-ha.yaml`: build, upload, and start logs.
+- `esphome logs config/esphome/simulated-eastron-dsmr-ha.yaml`: monitor runtime logs from the device.
 
 If you change the custom component, run `config` and `compile` before testing on hardware.
 
@@ -28,8 +29,8 @@ If you change the custom component, run `config` and `compile` before testing on
 ## Testing Guidelines
 There is no automated test suite in this repository yet. Minimum validation for changes:
 
-- `esphome config fake-eastron.yaml`
-- `esphome compile fake-eastron.yaml`
+- `esphome config config/esphome/simulated-eastron-dsmr-ha.yaml`
+- `esphome compile config/esphome/simulated-eastron-dsmr-ha.yaml`
 - Hardware smoke test against the inverter or a Modbus polling tool (verify expected slave address and register reads).
 
 Document manual test results in PRs when changing register behavior or timing.

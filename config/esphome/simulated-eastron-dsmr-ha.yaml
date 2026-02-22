@@ -22,9 +22,12 @@ esp32:
 
 external_components:
   - source:
-      type: local
+      type: git
+      url: https://github.com/keerekeerweere/ESPhome-simulate-eastron-SDM630-DSMR
+      ref: master
       path: esphome/components
     components: [modbus_server]
+    refresh: 1s
 
 wifi:
   ssid: !secret wifi_ssid
@@ -39,7 +42,9 @@ wifi:
 captive_portal:
 
 logger:
-  level: ERROR
+  # Set to DEBUG so Modbus request logs from on_read callbacks are visible.
+  # Reduce back to ERROR after register polling behavior is confirmed.
+  level: DEBUG
   baud_rate: 0
 
 api:
@@ -82,12 +87,14 @@ modbus_server:
         default: 0
         number: 72
         on_read: |-
+          ESP_LOGD("modbus_req", "Input register read: 0x%04X -> 0x%04X", address, value);
           id(last_valid_response) = millis();
           return value;
       - start_address: 0x00C8
         default: 0
         number: 6
         on_read: |-
+          ESP_LOGW("modbus_req", "Unexpected/invalid register read: 0x%04X", address);
           id(modbus_error_counter) += 1;
           return value;
 
@@ -152,52 +159,52 @@ sensor:
 
   # Local diagnostic mirrors (optional, shown in HA via ESPHome)
   - platform: template
-    name: "Spannung L1"
+    name: "Voltage L1"
     id: voltage_l1
     unit_of_measurement: "V"
     accuracy_decimals: 1
   - platform: template
-    name: "Spannung L2"
+    name: "Voltage L2"
     id: voltage_l2
     unit_of_measurement: "V"
     accuracy_decimals: 1
   - platform: template
-    name: "Spannung L3"
+    name: "Voltage L3"
     id: voltage_l3
     unit_of_measurement: "V"
     accuracy_decimals: 1
   - platform: template
-    name: "Strom L1"
+    name: "Current L1"
     id: current_l1
     unit_of_measurement: "A"
     accuracy_decimals: 3
   - platform: template
-    name: "Strom L2"
+    name: "Current L2"
     id: current_l2
     unit_of_measurement: "A"
     accuracy_decimals: 3
   - platform: template
-    name: "Strom L3"
+    name: "Current L3"
     id: current_l3
     unit_of_measurement: "A"
     accuracy_decimals: 3
   - platform: template
-    name: "Wirkleistung L1"
+    name: "Active Power L1"
     id: active_power_l1
     unit_of_measurement: "W"
     accuracy_decimals: 1
   - platform: template
-    name: "Wirkleistung L2"
+    name: "Active Power L2"
     id: active_power_l2
     unit_of_measurement: "W"
     accuracy_decimals: 1
   - platform: template
-    name: "Wirkleistung L3"
+    name: "Active Power L3"
     id: active_power_l3
     unit_of_measurement: "W"
     accuracy_decimals: 1
   - platform: template
-    name: "Gesamtenergie"
+    name: "Total Energy"
     id: total_energy
     unit_of_measurement: "kWh"
     accuracy_decimals: 3
