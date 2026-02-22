@@ -26,14 +26,15 @@ The original Shelly-based flow is still included to stay compatible with the ups
 
 ## How is this working?
 
-The project provides an ESPhome component acting as a Modbus RTU slave/server that can be polled by a master (e.g. charger or inverter). It behaves as much as possible like an Eastron SDM630 while mapping real meter data into the SDM630 register layout.
+The project uses an ESP32 with an RS485 adapter to emulate an Eastron SDM630 over Modbus RTU for a Technivolt 101 EV charger (Vestel-based behavior is expected). The charger polls the ESP32 as if it were a supported MID meter, while the ESP32 maps external data sources into the SDM630 register layout.
 
 ### How exactly?
 
-* On boot, the ESPhome starts a Modbus slave on address 2. This is where Growatt expects to find the vanilla Eastron SDM630 Modbus V2. It registers several input registers that can be queried by a Modbus master.
-* On the data side, ESPHome can read values either from Home Assistant (DSMR/P1 entities) or from the Shelly-based upstream flow.
-* The values are converted to IEEE-754 float and written to matching SDM630 input registers.
-* The charger/inverter queries the Modbus slave several times a second, fetching the input registers in various groups.
+* On boot, ESPHome starts a Modbus RTU slave (typically SDM630 v2 on address `2`) and exposes SDM630-compatible input registers.
+* The data source can be DSMR/P1 values via Home Assistant (primary target) or the Shelly-based upstream-compatible flow.
+* ESPHome converts values to IEEE-754 float and writes them to the matching SDM630 input registers (especially per-phase currents).
+* The Technivolt charger polls these registers and uses them to determine charging behavior / load management.
+* Request logging is enabled in the DSMR config so unexpected polling patterns can be captured and analyzed.
 
 ### Config variants
 
@@ -42,34 +43,34 @@ The project provides an ESPhome component acting as a Modbus RTU slave/server th
 
 ## Why?
 
-I use a Growatt MIN 4200TL-XH hybrid inverter. The inverter only supports two types of smart meters, which must be connected via RS485:
+The goal is to connect to a Technivolt 101 EV charger and influence charging behavior through Modbus RTU readings provided by an ESP32 + RS485 adapter.
 
-* Eastron SDM630 Modbus V2 or V3
-* CHINT smart meter from Growatt
+This makes it possible to shape the values seen by the charger so charging power follows a desired strategy, instead of being tied only to instantaneous real household usage.
 
-In my case the inverter is installed in a different room relatively far away from the grid connection. Having a two-wire RS485 connection running through the house is not an option. Also, I have a Shelly Pro 3EM smart meter installed. 
+Typical use cases:
 
-Since the Shelly is LAN-connected, this simple ESPhome project bridges manufacturer, distance, physical layer and protocol.
+* Cheap night tariffs: charge up to a chosen capacity during low-cost periods.
+* Dynamic tariffs: charge mainly when energy prices are low.
+* Flanders capacity tariff: limit peaks most of the time, but allow higher charging power when conditions are favorable.
+* Solar surplus: use available PV power for EV charging to avoid exporting to the grid at poor (sometimes negative) feed-in rates.
+
+In short, this project is a protocol bridge and control point: it presents SDM630-compatible meter values to the charger while allowing those values to be derived from DSMR/Home Assistant logic and tariff/solar-aware strategies.
 
 ## Installation
 
 1. Connect ESP32 dev board to RS485 module.
-2. Connect RS485 A and B connectors to pins 5 (A) and 6 (B) of the Growatt SYS COM port.
-3. Build and flash the firmware based on the chosen ESPHome config:
-   * Shelly-compatible: [`config/esphome/fake-eastron.yaml`](./config/esphome/fake-eastron.yaml)
-   * DSMR/Home Assistant: [`config/esphome/simulated-eastron-dsmr-ha.yaml`](./config/esphome/simulated-eastron-dsmr-ha.yaml)
-4. Enable meter-reading in Growatt **TODO: explain how**
-5. Power-cycle the inverter completely.
+2. Connect the RS485 module `A`/`B` lines to the Technivolt 101 EV charger RS485 `A`/`B` connection points exactly as described in the Technivolt installation documentation.
+3. For the load-management simulation use case, follow the Technivolt manual instructions for the relevant wiring/configuration in `docs/MA_EN_TECHNIVOLT_100+101_D100001458632.pdf`, especially section `10.2.3`.
+4. Build and flash the DSMR/Home Assistant firmware: [`config/esphome/simulated-eastron-dsmr-ha.yaml`](./config/esphome/simulated-eastron-dsmr-ha.yaml).
+5. Update the Home Assistant DSMR `entity_id` values in the YAML to match your installation.
+6. Configure the Technivolt charger for external meter/load-management operation according to the manual (section `10.2.3` for this simulation scenario).
+7. Power-cycle the charger if required by the charger setup procedure.
 
-**TODO: fritzing or image from breadboard**
-
-![Image](images/growatt-syscom.png)
-![Image](images/IMG_9971.JPG)
-![Image](images/IMG_9972.JPG)
+For the legacy Growatt/Shelly-compatible setup, see [`installation-growatt.md`](./installation-growatt.md).
 
 ### Modbus address
 
-Growatt expects different smart meters at different slave addresses:
+Many chargers/controllers expect specific meter types at specific slave addresses. For SDM-compatible setups, the commonly used addresses are:
 
 | Meter | Phases | Slave address |
 |---------|----------|-----------------|
@@ -77,13 +78,16 @@ Growatt expects different smart meters at different slave addresses:
 | Eastron SDM630 v2 | 3 | 2 |
 | Eastron SDM630 v3 | 3 | 3 |
 
-Eastron SDM630 **v3** is a custom version with firmware influenced by Growatt. My understanding is that it allows a higher rate of request/responses, resulting in finer tracking of power demands.
+For the Technivolt/Vestel-style simulation case in this repository, start with **SDM630 v2 / slave address `2`** unless your charger configuration/documentation explicitly expects a different address.
+
+Always match the ESPHome `modbus_slave_id` to the charger’s configured meter type/address.
 
 ## External documentation & tools
 
 * [Eastron SDM630 Modbus Protocol](docs/SDM630-Modbus_Protocol.pdf)
+* [Technivolt 100/101 Installation Manual](docs/MA_EN_TECHNIVOLT_100+101_D100001458632.pdf) (see section `10.2.3` for load-management simulation wiring/config)
 * [Shelly Pro 3 EM](https://shelly-api-docs.shelly.cloud/gen2/Devices/Gen2/ShellyPro3EM)
-* [Growatt Modbus RTU Protocol](docs/Growatt-Inverter-Modbus-RTU-Protocol-II-V1-24-English-new.pdf)
+* [Growatt Modbus RTU Protocol](docs/Growatt-Inverter-Modbus-RTU-Protocol-II-V1-24-English-new.pdf) (legacy/compatibility reference)
 * [ESP32 NodeMCU pinout](docs/ESP-32_NodeMCU_Developmentboard_Pinout.pdf)
 * [IEEE-754 Floating Point Converter](https://www.h-schmidt.net/FloatConverter/IEEE754.html)
 * [Online Modbus Parse](https://rapidscada.net/modbus/)
