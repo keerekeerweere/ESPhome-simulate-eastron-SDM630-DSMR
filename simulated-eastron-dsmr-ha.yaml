@@ -1,0 +1,272 @@
+# SDM630 emulator for Vestel/TECHNIVOLT load management
+# Data source: Home Assistant entities (typically fed by a DSMR P1 meter)
+#
+# Notes:
+# - The charger likely only needs phase currents (L1/L2/L3), but this config also
+#   fills voltage/power/energy registers to match the SDM630 map more closely.
+# - Update the Home Assistant `entity_id` values below to match your HA DSMR integration.
+
+substitutions:
+  friendly_name: "DSMR P1 SDM630 Emulator"
+  modbus_slave_id: "2"  # SDM630 v2 commonly uses slave address 2
+
+esphome:
+  name: dsmr-p1-sdm630-emulator
+  friendly_name: "${friendly_name}"
+  min_version: 2025.3.3
+
+esp32:
+  board: nodemcu-32s
+  framework:
+    type: arduino
+
+external_components:
+  - source:
+      type: local
+      path: esphome/components
+    components: [modbus_server]
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  fast_connect: true
+  power_save_mode: none
+  ap:
+    ssid: "${friendly_name} Fallback"
+    password: ""
+    ap_timeout: 5min
+
+captive_portal:
+
+logger:
+  level: ERROR
+  baud_rate: 0
+
+api:
+  id: ha_api
+
+ota:
+  - platform: esphome
+
+web_server:
+  port: 80
+  version: 2
+
+homeassistant:
+
+globals:
+  - id: last_valid_response
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: modbus_error_counter
+    type: int
+    restore_value: yes
+    initial_value: '0'
+
+uart:
+  - id: intmodbus
+    tx_pin: 17
+    rx_pin: 16
+    baud_rate: 9600
+    stop_bits: 1
+    data_bits: 8
+    parity: NONE
+
+modbus_server:
+  - id: modbusserver
+    uart_id: intmodbus
+    address: ${modbus_slave_id}
+    input_registers:
+      - start_address: 0x0000
+        default: 0
+        number: 72
+        on_read: |-
+          id(last_valid_response) = millis();
+          return value;
+      - start_address: 0x00C8
+        default: 0
+        number: 6
+        on_read: |-
+          id(modbus_error_counter) += 1;
+          return value;
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: "ESP32 IP Address"
+  - platform: template
+    name: "Modbus Status"
+    id: modbus_status
+    icon: "mdi:information-outline"
+
+binary_sensor:
+  - platform: status
+    name: "Status"
+    entity_category: diagnostic
+
+sensor:
+  # Imported HA/DSMR values (internal)
+  # These use common Home Assistant DSMR-style names as a starting point.
+  # If your integration prefixes names differently, only the entity_id values need changing.
+  - platform: homeassistant
+    id: ha_voltage_l1
+    entity_id: sensor.voltage_phase_l1
+    internal: true
+  - platform: homeassistant
+    id: ha_voltage_l2
+    entity_id: sensor.voltage_phase_l2
+    internal: true
+  - platform: homeassistant
+    id: ha_voltage_l3
+    entity_id: sensor.voltage_phase_l3
+    internal: true
+  - platform: homeassistant
+    id: ha_current_l1
+    entity_id: sensor.current_phase_l1
+    internal: true
+  - platform: homeassistant
+    id: ha_current_l2
+    entity_id: sensor.current_phase_l2
+    internal: true
+  - platform: homeassistant
+    id: ha_current_l3
+    entity_id: sensor.current_phase_l3
+    internal: true
+  - platform: homeassistant
+    id: ha_power_l1
+    entity_id: sensor.power_consumption_phase_l1
+    internal: true
+  - platform: homeassistant
+    id: ha_power_l2
+    entity_id: sensor.power_consumption_phase_l2
+    internal: true
+  - platform: homeassistant
+    id: ha_power_l3
+    entity_id: sensor.power_consumption_phase_l3
+    internal: true
+  - platform: homeassistant
+    id: ha_total_energy_kwh
+    entity_id: sensor.electricity_delivered_1
+    internal: true
+
+  # Local diagnostic mirrors (optional, shown in HA via ESPHome)
+  - platform: template
+    name: "Spannung L1"
+    id: voltage_l1
+    unit_of_measurement: "V"
+    accuracy_decimals: 1
+  - platform: template
+    name: "Spannung L2"
+    id: voltage_l2
+    unit_of_measurement: "V"
+    accuracy_decimals: 1
+  - platform: template
+    name: "Spannung L3"
+    id: voltage_l3
+    unit_of_measurement: "V"
+    accuracy_decimals: 1
+  - platform: template
+    name: "Strom L1"
+    id: current_l1
+    unit_of_measurement: "A"
+    accuracy_decimals: 3
+  - platform: template
+    name: "Strom L2"
+    id: current_l2
+    unit_of_measurement: "A"
+    accuracy_decimals: 3
+  - platform: template
+    name: "Strom L3"
+    id: current_l3
+    unit_of_measurement: "A"
+    accuracy_decimals: 3
+  - platform: template
+    name: "Wirkleistung L1"
+    id: active_power_l1
+    unit_of_measurement: "W"
+    accuracy_decimals: 1
+  - platform: template
+    name: "Wirkleistung L2"
+    id: active_power_l2
+    unit_of_measurement: "W"
+    accuracy_decimals: 1
+  - platform: template
+    name: "Wirkleistung L3"
+    id: active_power_l3
+    unit_of_measurement: "W"
+    accuracy_decimals: 1
+  - platform: template
+    name: "Gesamtenergie"
+    id: total_energy
+    unit_of_measurement: "kWh"
+    accuracy_decimals: 3
+  - platform: template
+    name: "Modbus CRC Errors"
+    id: modbus_crc_errors
+    entity_category: diagnostic
+    update_interval: 10s
+    lambda: |-
+      return id(modbus_error_counter);
+
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          auto finite_or = [](float value, float fallback) -> float {
+            return std::isnan(value) ? fallback : value;
+          };
+
+          float v1 = finite_or(id(ha_voltage_l1).state, 230.0f);
+          float v2 = finite_or(id(ha_voltage_l2).state, 230.0f);
+          float v3 = finite_or(id(ha_voltage_l3).state, 230.0f);
+
+          // Vestel-based chargers usually care most about per-phase current.
+          float c1 = finite_or(id(ha_current_l1).state, 0.0f);
+          float c2 = finite_or(id(ha_current_l2).state, 0.0f);
+          float c3 = finite_or(id(ha_current_l3).state, 0.0f);
+
+          float p1 = finite_or(id(ha_power_l1).state, v1 * c1);
+          float p2 = finite_or(id(ha_power_l2).state, v2 * c2);
+          float p3 = finite_or(id(ha_power_l3).state, v3 * c3);
+          float total_energy_kwh = finite_or(id(ha_total_energy_kwh).state, 0.0f);
+          float frequency_hz = 50.0f;
+          float total_power_w = p1 + p2 + p3;
+
+          id(voltage_l1).publish_state(v1);
+          id(voltage_l2).publish_state(v2);
+          id(voltage_l3).publish_state(v3);
+          id(current_l1).publish_state(c1);
+          id(current_l2).publish_state(c2);
+          id(current_l3).publish_state(c3);
+          id(active_power_l1).publish_state(p1);
+          id(active_power_l2).publish_state(p2);
+          id(active_power_l3).publish_state(p3);
+          id(total_energy).publish_state(total_energy_kwh);
+
+          union {
+            uint16_t reg[2];
+            float value;
+          } converter;
+
+          auto write_float_input = [&](uint16_t reg_addr, float value) {
+            converter.value = value;
+            id(modbusserver)->write_input_register(reg_addr, converter.reg[1]);
+            id(modbusserver)->write_input_register(reg_addr + 1, converter.reg[0]);
+          };
+
+          // SDM630-compatible input registers (float32, big-endian word order)
+          write_float_input(0x0000, v1);
+          write_float_input(0x0002, v2);
+          write_float_input(0x0004, v3);
+          write_float_input(0x0006, c1);
+          write_float_input(0x0008, c2);
+          write_float_input(0x000A, c3);
+          write_float_input(0x000C, p1);
+          write_float_input(0x000E, p2);
+          write_float_input(0x0010, p3);
+          write_float_input(0x0034, total_power_w);     // total system active power
+          write_float_input(0x0046, frequency_hz);      // frequency
+          write_float_input(0x0156, total_energy_kwh);  // import/total energy (project-specific use)
+
+          id(modbus_status).publish_state("HA/DSMR data mapped to SDM630 registers");
